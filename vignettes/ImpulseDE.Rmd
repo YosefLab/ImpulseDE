@@ -1,0 +1,431 @@
+---
+title: "ImpulseDE"
+author: "Jil Sander"
+date: "13 November 2015"
+output: pdf_document
+vignette: >
+  %\VignetteIndexEntry{ImpulseDE}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+# Table of Contents
+1. [Introduction](#introduction)  
+1.1 [Requirements for input data](#requirements-for-input-data)  
+1.2 [Calling ImpulseDE](#calling-impulsede)  
+1.3 [Output of ImpulseDE](#output-of-impulsede)
+2. [Differential expression analysis for single time courses](
+#differential-expression-analysis-for-single-time-courses)  
+2.1 [Running the analysis 1TK](#running-the-analysis-1tk)  
+2.2 [Plotting genes of interest 1TK](#plotting-genes-of-interest-1tk)  
+2.3 [Imputing values for missing time points 1TK](
+#imputing-values-for-missing-time-points-1tk)
+3. [Differential expression analysis between two time courses](
+#differential-expression-analysis-between-two-time-courses)  
+3.1 [Running the analysis 2TK](#running-the-analysis-2tk)  
+3.2 [Plotting genes of interest 2TK](#plotting-genes-of-interest-2tk)  
+3.3 [Imputing values for missing time points 2TK](
+#imputing-values-for-missing-time-points-2tk)
+4. [References](#references)
+
+# Introduction
+
+*ImpulseDE* detects differentially expressed (DE) genes in high-throughput
+time course experiments. It accepts two different kinds of inputs: 
+whether a single time course dataset (1TK) or a dataset containing a case as
+well as a control time course for each time point measured (2TK). 
+For the first scenario, it identifies genes being differentially
+expressed across time points. For the second scenario, *ImpulseDE* reports 
+genes being differentially expressed between both conditions.
+*ImpulseDE* follows a five-step workflow: 
+
+------------------------------------------------------------------------------
+Step               Explanation  
+-----------------  ----------------------------------------------------------
+Clustering         The genes are clustered into a limited number of groups  
+                   using k-means. In default modus, *ImpulseDE* generates PDF   
+                   documents, which contain plots for each cluster.   
+                   Additionally, a text-file is produced containing each gene  
+                   together with its corresponding cluster number.  
+                  
+Fit to clusters    *ImpulseDE* is based on the impulse model proposed by 
+                   Chechik and Koller, which  reflects a two-step behavior of 
+                   genes within a cell responding to environmental changes 
+                   [@chechikkoller2009]. This model is fitted to the mean
+                   expression profiles of the clusters.  
+
+Fit to genes       The best parameter sets obtained from the clusters are then
+                   used to fit an impulse model to each gene. 
+
+Fit to random data The impulse model is fitted to a randomized dataset
+                   (bootstrap), which is essential to detect
+                   differentially expressed genes [@storey2005].  
+
+Detection of       Detection of differentially expressed genes utilizing the
+differentially     fits to the real and randomized data sets. FDR-correction
+expressed genes    is performed to obtain adjusted p-values [@bh1995].
+------------------------------------------------------------------------------
+
+After each of those steps, a workspace containing the corresponding result
+object is saved into the working directory.
+
+## Requirements for input data
+*ImpulseDE* requires an expression table (only numbers) as well as an annotation
+table (characters allowed). The requirements for the two tables are the 
+following:  
+
+--------------------------------------------------------------------------------
+Feature            Explanation  
+-----------------  -------------------------------------------------------------
+Expression table   Genes have to be in rows and samples in columns. Both rows
+                   and columns should have unique identifiers.  
+                   
+Annotation table   Must have two columns, one carrying the timestamps as numeric
+                   numbers and the other one carrying the condition information.
+                   In the case of two time courses, two conditions are required.
+                   More than two conditions are allowed to be specified, but
+                   then two conditions (one case and one control conditions)
+                   have to be specified by the user for each run separately. The
+                   samples (row names) do not have to have the same order as in
+                   the expression table (column names), but the sample
+                   identifiers must be identical. Additional columns are allowed
+                   but will be ignored later on.  
+                   
+Missing values     Are **not supported**. Genes having missing values for at
+                   least one sample will be excluded from the analysis.  
+                   
+Time points        Since the parametric model contains six parameters, the
+                   dataset should contain at least **six** time points.  
+                   
+Normalization      Gene expression data should be **properly normalized**
+and filtering      including **log2-transformation** and **filtered** to avoid
+                   spending time on fitting the model to non-informative
+                   genes (e.g. not expressed or not variable genes). No impulse
+                   model will be fitted to genes having a coefficient of
+                   variation less than 0.025; instead, the mean across all
+                   samples is returned as the "fit".
+--------------------------------------------------------------------------------
+
+
+## Calling ImpulseDE
+The first four input parameters have to be specified by the user. Those are the
+names of the two input tables (*expression_table* and *annotation_table*) as
+well as the two column names carrying the time (*colname_time*) and condition
+(*colname_condition*) information within the annotation table. Additional
+parameters can be set to specify the time course scenario as well as fitting
+and parallelization parameters.  
+In the default modus, *ImpulseDE* expects a single time course scenario
+without any control data (*control_timecourse = FALSE* and *control_name = 
+NULL*). In the case of two time courses, the *control_timecourse* parameter has
+to be set to *TRUE* and for *control_name* the name of the control within
+*colname_condition* has to be specified. If more than two conditions are
+present within the annotation table, *case_name* has to be set in
+addition to run *ImpulseDE* for the desired case condition.  
+Regarding the fitting, as default *ImpulseDE* will run 100 iterations 
+(*n_iter = 100*) to optimize the model parameters, generate 50.000 random data
+points (*n_randoms = 50.000*) to estimate bootstrapped p-values for DE analysis,
+and determines DE genes using an FDR-adjusted p-value cutoff (q-value) of 1%
+(*Q_value = 0.01*). Furthermore, in default modus it will split the run into 4
+processes (*n_process = 4*). If parallelization is not possible on the device or
+is not admired, *n_process* should be set to *1*. 
+
+## Output of ImpulseDE
+
+*ImpulseDE* returns a list consisting of two sublists: *impulse_fit_results* and
+*DE_results*. The former contains the fitted impulse model parameters, sum of
+squared fitting errors as well as the calculated impulse values for all time
+points. The latter contains the names of the genes being called as
+differentially expressed according to a specified cutoff together with the
+adjusted p-values. Additionally, *ImpulseDE* saves the results from clustering
+and DE analysis as text files and resulting plots within PDF files.
+
+# Differential expression analysis for single time courses
+In the case of a single time course experiment, *ImpulseDE* will detect
+differentially expressed genes over time. A fitting dataset is provided within
+the R package *longitudinal*, where T cells were stimulated with PMA and
+ionomicin and harvested at 10 different time points [@rangel2004]. The dataset
+contains 10 measurements per time point for 58 genes:
+
+```{r}
+# Install package longitudinal and load it
+library(longitudinal)
+# attach T cell data. 
+data(tcell)
+# check dimension of data matrix of interest
+dim(tcell.10)
+```
+
+In order to be able to apply *ImpulseDE* on this dataset, *tcell.10* has to be
+transposed using *t()* during the call since genes need to be in rows and
+samples in columns. Additionally, it is necessary to create a proper
+annotation table:
+
+```{r}
+# generate annotation table with columns "Time" and "Condition"
+annot <- as.data.frame(cbind("Time" =
+   sort(rep(get.time.repeats(tcell.10)$time,10)),
+   "Condition" = "activated"), stringsAsFactors = FALSE)
+# Time columns must be numeric
+annot$Time <- as.numeric(annot$Time)
+# rownames of annotation table must appear in data table
+rownames(annot) = rownames(tcell.10)
+head(annot)
+```
+
+It is important that the *Time* column contains numeric values and that the
+*Condition* column is not a factor. Since the dataset contains only a sinlge
+time course and therefore only one condition, the *Condition* column contains
+only one unique value, *activated*.
+
+## Running the analysis 1TK
+*ImpulseDE* provides a single function, *impulse_DE*, which runs all the
+analysis steps automatically and prints the current status on the screen. To run
+*ImpulseDE* with all default options, only four variables need to be set for the
+single time course scenario: *expression_table*, *annotation_table*, 
+*colname_time* and *colname_condition*. However, for demonstration purposes the
+number of randomizations as well as the number of used processors will be
+reduced. For real datasets, it not recommended to reduce *n_randoms*.
+
+```{r}
+# load package
+library(ImpulseDE)
+# start analysis
+impulse_results <- impulse_DE(t(tcell.10), annot, "Time", "Condition",
+   n_randoms = 10, n_process = 1)
+```
+
+```{r echo = FALSE}
+# rename plot files so that they are not overwritten during the two time course
+# scenario
+#file.rename("clusters_case_genes.pdf", "clusters_case_genes_1tk.pdf")
+#file.rename("impulse_fit_genes_DE.pdf", "impulse_fit_genes_DE_1tk.pdf")
+```
+
+All indentified differentially expressed genes were plotted into
+*impulse_fit_genes_DE.pdf* and the top 9 are shown within *Figure 1*.
+
+<div style="text-align:center" markdown="1">
+![](impulse_fit_genes_DE_1tk.pdf)
+*Figure 1: Plots of the top 9 differentially expressed genes over time for the
+T cell single time course dataset*
+</div>
+
+For example, *JUND* and *CD69* show very typical impulse-like expression
+patterns, which cleary change significantly over time.
+
+## Plotting genes of interest 1TK
+
+*ImpulseDE* plots up to the top 36 DE genes automatically into the PDF-file
+*impulse_fit_genes_DE.pdf*. If it is of interest to plot a custom list of genes,
+this can be done using the function *plot_impulse*. As an example, four genes
+will be plotted, which were excluded from the fitting process due to a very low
+variation across the samples. For this the fitting results are needed, which
+can be taken from the generated result object *impulse_results* or from the
+saved workspace. *Figure 2* shows the resulting plots.
+
+```{r}
+load("impulse_fit_genes.RData")
+genes = c("MYD88","CLU","CASP7","RBL2")
+plot_impulse(gene_IDs = genes, data_table = t(tcell.10), data_annotation = annot,
+    imp_fit_genes = impulse_fit_genes, file_name_part = "four_NV_genes")
+```
+
+<div style="text-align:center" markdown="1">
+![](impulse_fit_genes_four_NV_genes.pdf)
+*Figure 2: Plots of four almost non-variable genes from T cell single 
+time course dataset*
+</div>
+
+## Imputing values for missing time points 1TK
+To impute values for an uncovered time point for a specific gene, the following
+command can be used:
+
+```{r}
+# impute expression value for time point 60 for gene "JUND"
+(imp_results <- calc_impulse(impulse_fit_genes$impulse_parameters_case["JUND",
+    1:6], 60))
+```
+
+# Differential expression analysis between two time courses
+
+In the case of a two time course experiment, *ImpulseDE* will detect
+differentially expressed genes between both conditions. In order to generate
+two time courses out of the T cell data set, the replicates will be splitted
+and to the second half some random numbers are added:
+
+
+```{r}
+# split dataset into two halfs
+case_data <-  t(tcell.10)[,seq(1,ncol(t(tcell.10)),2)]
+control_data <-  t(tcell.10)[,seq(2,ncol(t(tcell.10)),2)]
+# add some random values to "control_data" to make data different
+control_data <- control_data + t(apply(control_data,1,function(x) 
+    runif(length(x),0,0.5)*sample(c(-1,1),length(x), replace = TRUE)
+    + sample(c(seq(-2,2,0.5)),1)))
+tcell_2tk <- cbind(case_data, control_data)
+
+```
+
+At last, a proper annotation table has to be generated:
+
+```{r}
+annot_2tk <- annot[colnames(tcell_2tk),]
+annot_2tk[51:100,"Condition"] = "control"
+head(annot_2tk)
+tail(annot_2tk)
+
+```
+
+## Running the analysis 2TK
+In contrast to the single time course scenario, six variables need to be set:
+*expression_table*, *annotation_table*, *colname_time*, *colname_condition*, 
+*control_timecourse* and *control_name*. Here again, for demonstration purposes
+the number of randomizations as well as the number of used processors will be
+reduced. For real datasets, it not recommended to reduce *n_randoms*.
+
+
+```{r}
+# load package
+library(ImpulseDE)
+# start analysis
+impulse_results <- impulse_DE(tcell_2tk, annot_2tk, "Time", "Condition",
+    TRUE, "control", n_randoms = 10, n_process = 1)
+```
+
+*Figure 3* shows the top 9 differentially expressed genes between the generated
+case and control datasets.
+
+<div style="text-align:center" markdown="1">
+![](impulse_fit_genes_DE.pdf)
+*Figure 3: Plots of the top 9 differentially expressed genes over time for the
+T cell single time course dataset*
+</div>
+
+## Plotting genes of interest 2TK
+As an example, the same four genes will be plotted as for the single time course
+scenario. They are shown in *Figure 4*.
+
+```{r}
+load("impulse_fit_genes.RData")
+genes = c("MYD88","CLU","CASP7","RBL2")
+plot_impulse(gene_IDs = genes, data_table = tcell_2tk, data_annotation = 
+    annot_2tk, imp_fit_genes = impulse_fit_genes, control_timecourse = TRUE,
+    control_name = "control", file_name_part = "four_NV_genes_2tk")
+```
+
+<div style="text-align:center" markdown="1">
+![](impulse_fit_genes_four_NV_genes_2tk.pdf)
+*Figure 4: Plots of four almost non-variable genes from a two time course
+dataset generated from the T cell data*
+</div>
+
+## Imputing values for missing time points 2TK
+To impute values for an uncovered time point for a specific gene, *calc_impulse*
+has to be applied to both datasets separately:
+
+```{r}
+# impute expression value for time point 60 for gene "JUND"
+# case data
+(imp_results <- calc_impulse(impulse_fit_genes$impulse_parameters_case["JUND",
+    1:6], 60))
+# control data
+(imp_results <- calc_impulse(impulse_fit_genes$impulse_parameters_control[
+    "JUND",1:6], 60))
+```
+
+# References
+
+---
+references:
+- id: chechikkoller2009
+  title: Timing of Gene Expression Responses to Environmental Changes.
+  author:
+  - family: Chechik
+    given: Gal
+  - family: Koller
+    given: Daphne
+  container-title: Journal of Computational Biology
+  volume: 16
+  URL: http://online.liebertpub.com/doi/abs/10.1089/cmb.2008.13TT
+  DOI: 10.1089/cmb.2008.13TT
+  issue: 2
+  page: 279-290
+  type: article-journal
+  issued:
+    year: 2009
+    month: 2
+- id: storey2005
+  title: Significance analysis of time course microarray experiments.
+  author:
+  - family: Storey
+    given: John D.
+  - family: Xiao
+    given: Wenzhong
+  - family: Leek
+    given: Jeffrey T.
+  - family: Tompkins
+    given: Ronald G.
+  - family: Davis
+    given: Ronald W.
+  container-title: Proceedings of the National Academy of Sciences
+  volume: 102
+  URL: http://www.pnas.org/content/102/36/12837.full
+  DOI: 10.1073/pnas.0504609102
+  issue: 36
+  page: 12837-12842
+  type: article-journal
+  issued:
+    year: 2005
+    month: 2
+- id: bh1995
+  title: >
+   Controlling the False Discovery Rate: A Practical and Powerful
+   Approach to Multiple Testing.
+  author:
+  - family: Benjamini
+    given: Yoav
+  - family: Hochberg
+    given: Yosef
+  container-title: > 
+   Journal of the Royal Statistical Society Series B
+   (Methodological)
+  volume: 57
+  URL: http://www.jstor.org/stable/2346101
+  DOI: 10.2307/2346101
+  issue: 1
+  page: 289-300
+  type: article-journal
+  issued:
+    year: 1995
+    month: 3
+- id: rangel2004
+  title: >
+   Modeling T-cell activation using gene expression profiling and
+   state-space models.
+  author:
+  - family: Rangel
+    given: Claudia
+  - family: Angus
+    given: John
+  - family: Ghahramani
+    given: Zoubin
+  - family: Lioumi
+    given: Maria
+  - family: Sotheran
+    given: Elizabeth
+  - family: Gaiba
+    given: Alessia   
+  - family: Wild
+    given: David L.   
+  - family: Falciani
+    given: Francesco
+  container-title: Bioinformatics
+  volume: 20
+  URL: http://bioinformatics.oxfordjournals.org/content/20/9/1361.long
+  DOI: 10.1093/bioinformatics/bth093
+  issue: 9
+  page: 1361-1372
+  type: article-journal
+  issued:
+    year: 2004
+    month: 2
+---

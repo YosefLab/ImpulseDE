@@ -1,0 +1,34 @@
+Package: ImpulseDE
+Type: Package
+Title: Detection of DE genes in time series data using impulse models
+Version: 0.99.0
+Date: 2016-04-06
+Author: Jil Sander [aut, cre],
+    Nir Yosef [aut]
+Maintainer: Jil Sander <jil.sander@uni-bonn.de>,
+    Nir Yosef <niryosef@berkeley.edu>
+biocViews: Software,
+    StatisticalMethod,
+    TimeCourse
+Depends: graphics,
+    grDevices,
+    stats,
+    utils,
+    parallel,
+    compiler,
+    R (>= 3.3)
+Imports:
+    amap,
+    boot
+Suggests: longitudinal,
+    knitr
+Description: ImpulseDE is suited to capture single impulse-like patterns in
+    high throughput time series datasets. By fitting a representative
+    impulse model to each gene, it reports differentially expressed genes
+    whether across time points in a single experiment or between two time
+    courses from two experiments. To optimize the running time, the code
+    makes use of clustering steps and multi-threading.
+License: GPL-3
+LazyData: TRUE
+RoxygenNote: 5.0.0
+VignetteBuilder: knitr
