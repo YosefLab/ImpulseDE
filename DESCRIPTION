@@ -16,7 +16,7 @@ Depends: graphics,
     utils,
     parallel,
     compiler,
-    R (>= 3.3)
+    R (>= 3.2.3)
 Imports:
     amap,
     boot
