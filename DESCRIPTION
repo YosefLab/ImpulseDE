@@ -33,3 +33,4 @@ LazyData: TRUE
 RoxygenNote: 5.0.0
 VignetteBuilder: knitr
 URL: https://github.com/YosefLab/ImpulseDE
+BugReports: https://github.com/YosefLab/ImpulseDE/issues
