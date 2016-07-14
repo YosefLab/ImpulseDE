@@ -6,7 +6,8 @@
 \usage{
 plot_impulse(gene_IDs, data_table, data_annotation, imp_fit_genes,
   control_timecourse = FALSE, control_name = NULL, case_name = NULL,
-  file_name_part = "", title_line = "", sub_line = "")
+  file_name_part = "", title_line = "", sub_line = "",
+  new_device = TRUE)
 }
 \arguments{
 \item{gene_IDs}{character vector of gene names to be plotted; must be part
@@ -20,9 +21,7 @@ log2-transformed as well as filtered for present or variable genes.}
 condition and time points. Time points must be numeric numbers.}
 
 \item{imp_fit_genes}{list of  fitted impulse model values and parameters as
-produced by \code{impulse_DE} (list element \code{impulse_fit_results});
-another possibility is to load the saved fitting object
-\code{load("impulse_fit_genes.RData")}.}
+produced by \code{impulse_DE} (list element \code{impulse_fit_results}).}
 
 \item{control_timecourse}{logical indicating whether a control time
 timecourse is part of the data set (\code{TRUE}) or not (\code{FALSE}).
@@ -40,10 +39,12 @@ conditions are present in \code{data_annotation}.}
 \item{title_line}{character string to be used as title for each plot.}
 
 \item{sub_line}{character string to be used as subtitle for each plot.}
+
+\item{new_device}{logical indicating whether each plot should be plotted
+into a new device (\code{TRUE}) or not (\code{FALSE}). Default is \code{TRUE}.}
 }
 \value{
-PDF-files containing the plots of the impulse model fits for the
-specified gene IDs.
+Plots of the impulse model fits for the specified gene IDs.
 }
 \description{
 Plots impulse model fits for the specified gene IDs. In the case of two

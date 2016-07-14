@@ -2,7 +2,7 @@ Package: ImpulseDE
 Type: Package
 Title: Detection of DE genes in time series data using impulse models
 Version: 0.99.0
-Date: 2016-04-06
+Date: 2016-06-16
 Author: Jil Sander [aut, cre],
     Nir Yosef [aut]
 Maintainer: Jil Sander <jil.sander@uni-bonn.de>,
@@ -16,7 +16,7 @@ Depends: graphics,
     utils,
     parallel,
     compiler,
-    R (>= 3.2.3)
+    R (>= 3.3)
 Imports:
     amap,
     boot

@@ -9,7 +9,7 @@ impulse_DE(expression_table = NULL, annotation_table = NULL,
   colname_time = NULL, colname_condition = NULL,
   control_timecourse = FALSE, control_name = NULL, case_name = NULL,
   expr_type = "Array", plot_clusters = TRUE, n_iter = 100,
-  n_randoms = 50000, n_process = 4, Q_value = 0.01)
+  n_randoms = 50000, n_process = 4, Q_value = 0.01, new_device = TRUE)
 }
 \arguments{
 \item{expression_table}{numeric matrix of expression values; genes should
@@ -58,6 +58,9 @@ function from the package \code{parallel} to avoid overload.}
 \item{Q_value}{numeric value specifying the cutoff to call genes
 significantly differentially expressed after FDR correction (adjusted
 p-value). Default is \code{0.01}.}
+
+\item{new_device}{logical indicating whether each plot should be plotted
+into a new device (\code{TRUE}) or not (\code{FALSE}). Default is \code{TRUE}.}
 }
 \value{
 List containing the following elements:
@@ -65,70 +68,44 @@ List containing the following elements:
 \item \code{impulse_fit_results} List containing fitted values and model
 parameters:
 \itemize{
-\item \code{impulse_parameters_combined} Matrix of fitted impulse model
-parameters and sum of squared fitting errors for the combined dataset.
-Not existing in the case of a single time course experiment.
-\item \code{impulse_fits_combined} Matrix of impulse values calculated based
-on the analyzed time points and the fitted model parameters for the combined
-dataset. Not existing in the case of a single time course experiment.
 \item \code{impulse_parameters_case} Matrix of fitted impulse model
-parameters and sum of squared fitting errors for the case dataset.
-\item \code{impulse_fits_case}  Matrix of impulse values calculated based
-on the analyzed time points and the fitted model parameters for the case
-dataset.
-\item \code{impulse_parameters_control} Matrix of fitted impulse model
-parameters and sum of squared fitting errors for the control dataset.
-Not existing in the case of a single time course experiment.
-\item \code{impulse_fits_control} Matrix of impulse values calculated based
-on the analyzed time points and the fitted model parameters for the control
-dataset. Not existing in the case of a single time course experiment.
+parameters and sum of squared fitting errors for the case dataset. If a
+control time course is present, corresponding list entries will exist for the
+control and the combined dataset as well (named
+\code{impulse_parameters_control} and \code{impulse_parameters_combined},
+respectively).
+\item \code{impulse_fits_case} Matrix of impulse values calculated based
+on the analyzed time points and the fitted model parameters for the combined
+dataset. If a control time course is present, corresponding list entries will
+exist for the control and the combined dataset as well (named
+\code{impulse_fits_control} and \code{impulse_fits_combined},
+respectively).
 }
-\item \code{DE_results} Matrix containing the names of genes being called
+\item \code{DE_results} List containg the results from the differential
+expression analysis:
+\itemize{
+\item \code{DE_genes} data.frame containing the names of genes being called
 as differentially expressed according to the specified cutoff \code{Q_value}
 together with the adjusted p-values.
-}
-Additionally, \code{ImpulseDE} saves the following objects and tables into
-the working directory:
-\itemize{
-\item \code{prepared_annotation.RData} Object containing the internally used
-modified version of \code{annotation_table}
-\item \code{clus_out2.txt} Text-file saving std out from the multi-threading.
-Can be ignored.
-\item \code{kmeans_clus_final_combined_genes.txt} Text-file containing
-each gene together with its corresponding cluster number for the combined
-dataset. Not existing in the case of a single time course experiment.
-\item \code{kmeans_clus_final_case_genes.txt} Text-file containing
-each gene together with its corresponding cluster number for the case
-dataset.
-\item \code{kmeans_clus_final_control_genes.txt} Text-file containing
-each gene together with its corresponding cluster number for the control
-dataset. Not existing in the case of a single time course experiment.
-\item \code{clusters_combined_genes.pdf} PDF-file containing
-the clusters for the combined dataset. Not existing in the case of a single
-time course experiment.
-\item \code{clusters_case_genes.pdf} PDF-file containing
-the clusters for the case dataset.
-\item \code{clusters_control_genes.pdf} PDF-file containing
-the clusters for the control dataset. Not existing in the case of a single
-time course experiment.
-\item \code{impulse_fit_clusters.RData} Object containing a list of the
-fitted impulse model values and paramaters to the cluster means; structure
-is the same as for the list element \code{impulse_fit_results} of the output
-value.
-\item \code{impulse_fit_genes.RData} Object containing a list of the
-fitted impulse model values and paramaters to the genes; structure is the
-same as for the list element \code{impulse_fit_results} of the output value.
-\item \code{cluster_out_random.txt} Text-file saving std out from the
-multi-threading related to the randomized data. Can be ignored.
-\item \code{background_results.RData} F-score values generated based on the
-fits to the randomized data as used for the differential expression analysis.
-\item \code{impulse_DE_genes.RData} Object containing names of genes being
-called as differentially expressed according to the specified cutoff
-\code{Q_value} together with the adjusted p-values; same as the list element
-\code{DE_results} of the output value.
-\item \code{pvals_and_flags.txt} Text-file containing all gene names
+\item \code{pvals_and_flags} data.frame containing all gene names
 together with the adjusted p-values and flags for differential expression
 according to additional tests.
+}
+\item \code{clustering_results} List containing the clustering results:
+\itemize{
+\item \code{kmeans_clus_case} Numeric vector of clusters IDs, to which the
+genes were finally assigned.
+\item \code{cluster_means_case} Matrix containing the mean expression values
+for each cluster (taken over all genes assigned to a cluster).
+\item \code{pre_clus_case} Numeric number of clusters determined after the
+first (preliminary) clustering step.
+\item \code{fine_clus_case} Numeric number of final clusters determined after
+ the second clustering step.
+}
+If a control time course is present, those four list entries will
+exist correspondingly for the control and the combined dataset as well
+(ending with \code{_control} and \code{_combined} instead of \code{_case},
+respectively).
 }
 }
 \description{
@@ -145,9 +122,7 @@ responding to environmental changes (Chechik and Koller, 2009). To detect
 differentially expressed genes, a five-step workflow is followed:
 \enumerate{
 \item The genes are clustered into a limited number of groups using k-means
-clustering. If \code{plot_clusters} = \code{TRUE}, PDF documents are
-generated, which contain plots of each cluster. Additionally, a text-file is
-produced containing each gene together with its corresponding cluster number.
+clustering. If \code{plot_clusters} = \code{TRUE}, the clusters are plotted.
 \item The impulse model is fitted to the mean expression profiles of the
 clusters. The best parameter sets are then used for the next step.
 \item The impulse model is fitted to each gene separately using the parameter
@@ -177,10 +152,10 @@ annot$Time <- as.numeric(annot$Time)
 rownames(annot) = rownames(tcell.10)
 #' apply ImpulseDE in single time course mode
 #' since genes must be in rows, transpose data matrix using t()
-#' For the example, reduce random iterations to 100 and number of
-#' used processors to 1
-impulse_results <- impulse_DE(t(tcell.10), annot, "Time", "Condition",
-   n_randoms = 50, n_process = 1)
+#' For the example, reduce iterations to 10, randomizations to 50, number of
+#' genes to 20 and number of used processors to 1:
+impulse_results <- impulse_DE(t(tcell.10)[1:20,], annot, "Time", "Condition",
+   n_iter = 10, n_randoms = 50, n_process = 1)
 }
 \author{
 Jil Sander

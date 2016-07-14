@@ -4,7 +4,7 @@
 ################################################################################
 
 ### Version:  0.99.0
-### Date:     2016-04-06
+### Date:     2016-06-02
 ### Author:   Jil Sander
 
 ################################################################################
@@ -25,6 +25,7 @@
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++#
 
 #Prepares the annotation table for internal use
+
 annotation_preparation <- function(data_annotation, data_table = NULL,
   colname_time = NULL, colname_condition = NULL, control_timecourse = FALSE,
   control_name = NULL, case_name = NULL){
@@ -61,7 +62,7 @@ annotation_preparation <- function(data_annotation, data_table = NULL,
                  since you provide more than three conditions!")
    }
    annot <- data_annotation[,c(colname_time,colname_condition)]
-   annot <- data_annotation[colnames(data_table),]
+   annot <- annot[colnames(data_table),]
    colnames(annot) <- c("Time","Condition")
    annot$Condition <- as.character(annot$Condition)
 
@@ -160,11 +161,12 @@ two_impulses_comp <- cmpfun(two_impulses)
 ###          eucledian distance to compare the magnitude
 cluster_genes_for_impulse <- function(data_table, data_annotation,
     control_timecourse = FALSE, control_name = NULL, plot_clusters = FALSE,
-    no_of_clusters = NULL, n_genes = NULL){
+    no_of_clusters = NULL, n_genes = NULL, n_device = TRUE){
 
   #' @import amap
-  corr_thres = 0.85
-  eucl_thres = 1.8
+
+  corr_thres = 0.8
+  eucl_thres = 1.5
 
   ### assume only one timecourse as default and perform only 1 run
   results = list()
@@ -429,12 +431,6 @@ cluster_genes_for_impulse <- function(data_table, data_annotation,
             sum(n_fine_clusters[1:(cl - 1)])
       }
     }
-
-    if (file_part != "bg") {
-      write.table(kmeans_clus_final,paste("kmeans_clus_final_",label[c_runs],
-            "_",file_part,".txt",sep = ""),sep = "\t",quote = FALSE,
-            row.names = TRUE, col.names = FALSE)
-    }
     rownames(cluster_means)  <- 1:sum(n_fine_clusters)
     n_clus = sum(n_fine_clusters)
 
@@ -449,23 +445,29 @@ cluster_genes_for_impulse <- function(data_table, data_annotation,
    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
     if (plot_clusters == TRUE & file_part != "bg") {
-      pdf(paste("clusters_",label[c_runs],"_",file_part,".pdf",sep = ""),
-          height = 10.0,width = 16.0)
-
       for (i in 1:n_clus) {
 
-        ### 1 or 2 clusters
-        if ((i == 1) & (n_clus <= 2)) {
-            par(mfrow = c(1,2))
-        } else if ((i == 1) & (n_clus <= 4)) {
-            par(mfrow = c(2,2))
-        ### print all clusters on one page if number of clusters is <= 12
-        } else if ((i == 1) & (n_clus <= 12)) {
-          par(mfrow = c(3,4))
-
-        ### if number of clusters is > 12 plot always 20 clusters on one page
-        } else if (i == 1 || ((i - 1) %% 20 == 0)) {
-          par(mfrow = c(4,5))
+        if (i == 1){
+            if(n_device == TRUE){
+                dev.new()
+            }
+            if (n_clus == 1) {
+                par(mfrow = c(1,1))
+            }
+            else if (n_clus == 2) {
+                par(mfrow = c(1,2))
+            } else if (n_clus <= 4) {
+                par(mfrow = c(2,2))
+            } else if (n_clus <= 12) {
+                par(mfrow = c(3,4))
+            } else if (n_clus > 12) {
+                par(mfrow = c(4,5))
+            }
+        } else if ((i - 1) %% 20 == 0) {
+            if (n_device == TRUE) {
+                dev.new()
+            }
+            par(mfrow = c(4,5))
         }
         ### expression values of genes in cluster
         tmp <- dat_ztrans[kmeans_clus_final %in% i,]
@@ -487,15 +489,14 @@ cluster_genes_for_impulse <- function(data_table, data_annotation,
           ### plot clusters
           if (j == 1) {                     # if cluster contains only 1 gene
             plot(tmp_plot,type = "l",xlab = "Time points", ylab = "Z-score",
-                    main = paste("Cluster ",i,sep = ""),ylim = c(min(tmp),max(tmp)),
-                    xaxt = "n")
+                    main = paste("Cluster ",i,", ",label[c_runs],sep = ""),
+                    ylim = c(min(tmp),max(tmp)),xaxt = "n")
           axis(1, at = 1:length(colnames(tmp)), labels = colnames(tmp), las = 3)
           } else {   # if cluster contains > 1 genes
             points(colnames(tmp),tmp_plot,type = "l")
           }
         }
       }
-    dev.off()
     }
     results[[c_runs*4 - 3]] <- kmeans_clus_final
     results[[c_runs*4 - 2]] <- cluster_means
@@ -543,7 +544,6 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
   if (control_timecourse == FALSE & (is.null(control_name) == FALSE)) {
      start_values <- start_values[c(1,3)]
   }
-
 
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   #~~~~~~~~~~~~~~~~~~~~~~~~  Fit impulse model to gene ~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -608,7 +608,7 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
                             mn_tm + (mx_tm - mn_tm)*x[5],
                             (mn_tm + (mx_tm - mn_tm)*x[5]) + (mx_tm - (mn_tm +
                             (mx_tm - mn_tm)*x[5]))*x[6])})
-          }
+           }
         tmm1 <- system.time({
         fmin_outs <- cbind(
         # fitting via quasi-Newton method (optim, "BFGS")
@@ -621,7 +621,6 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
              y_vec = vec)[c("par","objective")])})
            )
         })
-
 
         ### return results of 3 best fits, which will serve as start values for
         ### the fits to the genes
@@ -638,6 +637,7 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
         } else {
           toll <- cbind(theta,matrix(start_val,7,3)[1:NPARAM,][,1:3])
         }
+
         fmin_outs <- cbind(
         # fitting via quasi-Newton method (optim, "BFGS")
         apply(toll,2,
@@ -692,11 +692,11 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
              ind_list[[mc]] <-  c(ind_list[[mc]],(mc*bord + 1):nrow(data_tab))
         }
 
-        cl <- makeCluster(mc, outfile = "clus_out2.txt")
+        cl <- makeCluster(mc)
         my.env <- new.env()
         assign("data_tab", data_tab, envir = my.env)
         assign("calc_impulse_comp", calc_impulse_comp, envir = my.env)
-        assign("n_it", calc_impulse_comp, envir = my.env)
+        assign("n_it", n_it, envir = my.env)
         assign("cluster_genes_for_impulse", cluster_genes_for_impulse,
              envir = my.env)
         assign("impulse_fit", impulse_fit, envir = my.env)
@@ -732,6 +732,7 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
     ### use obtained impulse parameters to calculate impulse fit values
     ### ---> if fit to genes
     if (fit_to_clus == FALSE) {
+
      colnames(resmat) <- c("beta","h0","h1","h2","t1","t2","SSE")
      if (nrow(resmat) == 1) {      # if matrix contains only one gene
        resmat2 <- as.data.frame(t(calc_impulse_comp(resmat[,1:NPARAM],
@@ -914,9 +915,7 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
 #' @param data_annotation table providing co-variables for the samples including
 #' condition and time points. Time points must be numeric numbers.
 #' @param imp_fit_genes list of  fitted impulse model values and parameters as
-#' produced by \code{impulse_DE} (list element \code{impulse_fit_results});
-#' another possibility is to load the saved fitting object
-#' \code{load("impulse_fit_genes.RData")}.
+#' produced by \code{impulse_DE} (list element \code{impulse_fit_results}).
 #' @param control_timecourse logical indicating whether a control time
 #' timecourse is part of the data set (\code{TRUE}) or not (\code{FALSE}).
 #' Default is \code{FALSE}.
@@ -928,8 +927,9 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
 #' @param file_name_part character string to be used as file extention.
 #' @param title_line character string to be used as title for each plot.
 #' @param sub_line character string to be used as subtitle for each plot.
-#' @return PDF-files containing the plots of the impulse model fits for the
-#' specified gene IDs.
+#' @param new_device logical indicating whether each plot should be plotted
+#' into a new device (\code{TRUE}) or not (\code{FALSE}). Default is \code{TRUE}.
+#' @return Plots of the impulse model fits for the specified gene IDs.
 #' @seealso \code{\link{impulse_DE}}, \code{\link{calc_impulse}}.
 #' @author Jil Sander
 #' @references Chechik, G. and Koller, D. (2009) Timing of Gene Expression
@@ -983,7 +983,7 @@ impulse_fit <- function(data_input, data_annotation, n_iter = 100,
 #' @export
 plot_impulse <- function(gene_IDs, data_table, data_annotation,imp_fit_genes,
     control_timecourse = FALSE, control_name = NULL, case_name = NULL,
-    file_name_part = "", title_line = "", sub_line = ""){
+    file_name_part = "", title_line = "", sub_line = "", new_device = TRUE){
 
   print("---Plotting genes")
 
@@ -1003,19 +1003,31 @@ plot_impulse <- function(gene_IDs, data_table, data_annotation,imp_fit_genes,
             "Time"]))
   }
   timep <- as.numeric(as.character(data_annotation[colnames(data_table),"Time"]))
-  pdf(paste("impulse_fit_genes_",file_name_part,".pdf", sep = ""),
-      height = 6.0,width = 9.0)
-   if (length(gene_IDs) == 1) {
-      par(mfrow = c(1,1))
-   } else if (length(gene_IDs) <= 4) {
-      par(mfrow = c(2,2))
-   } else if (length(gene_IDs) <= 6) {
-      par(mfrow = c(2,3))
-   } else {
-    par(mfrow = c(3,3))
-   }
-   x_vec <- seq(0,max(timep),0.1)
+  x_vec <- seq(0,max(timep),0.1)
+
    for (i in 1:length(gene_IDs)) {
+       if (i == 1) {
+           if(new_device == TRUE){
+               dev.new()
+           }
+           if (length(gene_IDs) == 1) {
+               par(mfrow = c(1,1))
+           } else if (length(gene_IDs) == 2) {
+               par(mfrow = c(1,2))
+           } else if (length(gene_IDs) <= 4) {
+               par(mfrow = c(2,2))
+           } else if (length(gene_IDs) <= 6) {
+               par(mfrow = c(2,3))
+           } else if (length(gene_IDs) > 6) {
+               par(mfrow = c(3,3))
+           }
+        } else if ((i - 1) %% 9 == 0) {
+            if(new_device == TRUE){
+                dev.new()
+            }
+            par(mfrow = c(3,3))
+        }
+
      ### if there is no control data plot only case time course data and fit
      if (control_timecourse == FALSE) {
          if (TRUE %in% is.na(imp_fit_genes$impulse_parameters_case[gene_IDs[i],])) {
@@ -1094,7 +1106,6 @@ plot_impulse <- function(gene_IDs, data_table, data_annotation,imp_fit_genes,
             fill = c("blue","red","grey"), cex = 0.6)
      }
    }
-   dev.off()
 }
 
 
@@ -1287,11 +1298,11 @@ generate_background <- function(data_table, data_annotation, n_iter = 100,
 
 #' @import parallel
 #' @import boot
-#
+
 #  ### set number of nodes to maximum - 1
   mc <- min(detectCores() - 1, n_proc)
   assign("mc", mc, envir = my.env)
-  cl <- makeCluster(mc, outfile = "cluster_out_random.txt")
+  cl <- makeCluster(mc)
   clusterExport(cl = cl, varlist = c("impulse_bg","n_rands","n_proc","data_table",
     "data_annotation","n_iter","control_timecourse","control_name",
     "imp_fit_genes","mc", "no_of_clus","calc_impulse_comp",
@@ -1448,8 +1459,8 @@ DE_analysis <- function(data_table,data_annotation,impulse_fit_results,
 
   ### exit the function without error if no DE genes are detected
   if (!(TRUE %in% (p_scaled <= Q))) {
-    warning("No DE genes were detected. Maybe amount of background genes is
-            too low.")
+    warning("No DE genes were detected. Maybe amount of background
+            randomizations is too low.")
     return(NULL)
 
   ### if DE genes are detected, finish FDR correction by using the cutoff
@@ -1463,28 +1474,24 @@ DE_analysis <- function(data_table,data_annotation,impulse_fit_results,
     result = result[order(result$adj.p),]
     print(paste("Found ",nrow(result[result$adj.p <= Q,])," DE genes",sep = ""))
 
-
+    pvals_and_flags <- NULL
     if (control_timecourse == TRUE) {
-       write.table(as.data.frame(cbind("Gene" = row.names(data_table),
+       pvals_and_flags <- as.data.frame(cbind("Gene" = row.names(data_table),
             "adj.p" = p_scaled_orig, "at least 2 TPs for case vs. control" =
             FC_DEindex, "ANOVA condition or time*condition" = anovas_index,
-            "prediction error" = error_index)),"pvals_and_flags.txt",
-            quote = FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+            "prediction error" = error_index))
     } else {
        if (e_type == "Array") {
-         write.table(as.data.frame(cbind("Gene" = row.names(data_table),
+           pvals_and_flags <- as.data.frame(cbind("Gene" = row.names(data_table),
             "adj.p" = p_scaled_orig, "at least 2 consecutive TP Ratios" =
-            FC_TP_DEindex, "prediction error" = error_index)),
-            "pvals_and_flags.txt", quote = FALSE, sep = "\t", row.names = TRUE,
-            col.names = NA)
+            FC_TP_DEindex, "prediction error" = error_index))
        } else {
-         write.table(as.data.frame(cbind("Gene" = row.names(data_table),
-            "adj.p" = p_scaled_orig,"prediction error" = error_index)),
-            "pvals_and_flags.txt", quote = FALSE, sep = "\t",
-            row.names = TRUE, col.names = NA)
+           pvals_and_flags <- as.data.frame(cbind("Gene" = row.names(data_table),
+            "adj.p" = p_scaled_orig,"prediction error" = error_index))
        }
     }
-    return(result[as.numeric(result$adj.p) <= Q,])
+    return(list("DE_genes" = result[as.numeric(result$adj.p) <= Q,],
+            "pvals_and_flags" = pvals_and_flags))
     }
 }
 
@@ -1542,75 +1549,51 @@ DE_analysis <- function(data_table,data_annotation,impulse_fit_results,
 #' @param Q_value numeric value specifying the cutoff to call genes
 #' significantly differentially expressed after FDR correction (adjusted
 #' p-value). Default is \code{0.01}.
+#' @param new_device logical indicating whether each plot should be plotted
+#' into a new device (\code{TRUE}) or not (\code{FALSE}). Default is \code{TRUE}.
 #' @return List containing the following elements:
 #' \itemize{
 #' \item \code{impulse_fit_results} List containing fitted values and model
 #' parameters:
 #' \itemize{
-#' \item \code{impulse_parameters_combined} Matrix of fitted impulse model
-#' parameters and sum of squared fitting errors for the combined dataset.
-#' Not existing in the case of a single time course experiment.
-#' \item \code{impulse_fits_combined} Matrix of impulse values calculated based
-#' on the analyzed time points and the fitted model parameters for the combined
-#' dataset. Not existing in the case of a single time course experiment.
 #' \item \code{impulse_parameters_case} Matrix of fitted impulse model
-#' parameters and sum of squared fitting errors for the case dataset.
-#' \item \code{impulse_fits_case}  Matrix of impulse values calculated based
-#' on the analyzed time points and the fitted model parameters for the case
-#' dataset.
-#' \item \code{impulse_parameters_control} Matrix of fitted impulse model
-#' parameters and sum of squared fitting errors for the control dataset.
-#' Not existing in the case of a single time course experiment.
-#' \item \code{impulse_fits_control} Matrix of impulse values calculated based
-#' on the analyzed time points and the fitted model parameters for the control
-#' dataset. Not existing in the case of a single time course experiment.
+#' parameters and sum of squared fitting errors for the case dataset. If a
+#' control time course is present, corresponding list entries will exist for the
+#' control and the combined dataset as well (named
+#' \code{impulse_parameters_control} and \code{impulse_parameters_combined},
+#' respectively).
+#' \item \code{impulse_fits_case} Matrix of impulse values calculated based
+#' on the analyzed time points and the fitted model parameters for the combined
+#' dataset. If a control time course is present, corresponding list entries will
+#' exist for the control and the combined dataset as well (named
+#' \code{impulse_fits_control} and \code{impulse_fits_combined},
+#' respectively).
 #' }
-#' \item \code{DE_results} Matrix containing the names of genes being called
+#' \item \code{DE_results} List containg the results from the differential
+#' expression analysis:
+#' \itemize{
+#' \item \code{DE_genes} data.frame containing the names of genes being called
 #' as differentially expressed according to the specified cutoff \code{Q_value}
 #' together with the adjusted p-values.
-#' }
-#' Additionally, \code{ImpulseDE} saves the following objects and tables into
-#' the working directory:
-#' \itemize{
-#' \item \code{prepared_annotation.RData} Object containing the internally used
-#' modified version of \code{annotation_table}
-#' \item \code{clus_out2.txt} Text-file saving std out from the multi-threading.
-#' Can be ignored.
-#' \item \code{kmeans_clus_final_combined_genes.txt} Text-file containing
-#' each gene together with its corresponding cluster number for the combined
-#' dataset. Not existing in the case of a single time course experiment.
-#' \item \code{kmeans_clus_final_case_genes.txt} Text-file containing
-#' each gene together with its corresponding cluster number for the case
-#' dataset.
-#' \item \code{kmeans_clus_final_control_genes.txt} Text-file containing
-#' each gene together with its corresponding cluster number for the control
-#' dataset. Not existing in the case of a single time course experiment.
-#' \item \code{clusters_combined_genes.pdf} PDF-file containing
-#' the clusters for the combined dataset. Not existing in the case of a single
-#' time course experiment.
-#' \item \code{clusters_case_genes.pdf} PDF-file containing
-#' the clusters for the case dataset.
-#' \item \code{clusters_control_genes.pdf} PDF-file containing
-#' the clusters for the control dataset. Not existing in the case of a single
-#' time course experiment.
-#' \item \code{impulse_fit_clusters.RData} Object containing a list of the
-#' fitted impulse model values and paramaters to the cluster means; structure
-#' is the same as for the list element \code{impulse_fit_results} of the output
-#' value.
-#' \item \code{impulse_fit_genes.RData} Object containing a list of the
-#' fitted impulse model values and paramaters to the genes; structure is the
-#' same as for the list element \code{impulse_fit_results} of the output value.
-#' \item \code{cluster_out_random.txt} Text-file saving std out from the
-#' multi-threading related to the randomized data. Can be ignored.
-#' \item \code{background_results.RData} F-score values generated based on the
-#' fits to the randomized data as used for the differential expression analysis.
-#' \item \code{impulse_DE_genes.RData} Object containing names of genes being
-#' called as differentially expressed according to the specified cutoff
-#' \code{Q_value} together with the adjusted p-values; same as the list element
-#' \code{DE_results} of the output value.
-#' \item \code{pvals_and_flags.txt} Text-file containing all gene names
+#' \item \code{pvals_and_flags} data.frame containing all gene names
 #' together with the adjusted p-values and flags for differential expression
 #' according to additional tests.
+#' }
+#' \item \code{clustering_results} List containing the clustering results:
+#' \itemize{
+#' \item \code{kmeans_clus_case} Numeric vector of clusters IDs, to which the
+#' genes were finally assigned.
+#' \item \code{cluster_means_case} Matrix containing the mean expression values
+#' for each cluster (taken over all genes assigned to a cluster).
+#' \item \code{pre_clus_case} Numeric number of clusters determined after the
+#' first (preliminary) clustering step.
+#' \item \code{fine_clus_case} Numeric number of final clusters determined after
+#'  the second clustering step.
+#' }
+#' If a control time course is present, those four list entries will
+#' exist correspondingly for the control and the combined dataset as well
+#' (ending with \code{_control} and \code{_combined} instead of \code{_case},
+#' respectively).
 #' }
 #' @details \code{ImpulseDE} is based on the impulse model proposed by
 #' Chechik and Koller, which reflects a two-step behavior of genes within a cell
@@ -1618,9 +1601,7 @@ DE_analysis <- function(data_table,data_annotation,impulse_fit_results,
 #' differentially expressed genes, a five-step workflow is followed:
 #' \enumerate{
 #' \item The genes are clustered into a limited number of groups using k-means
-#' clustering. If \code{plot_clusters} = \code{TRUE}, PDF documents are
-#' generated, which contain plots of each cluster. Additionally, a text-file is
-#' produced containing each gene together with its corresponding cluster number.
+#' clustering. If \code{plot_clusters} = \code{TRUE}, the clusters are plotted.
 #' \item The impulse model is fitted to the mean expression profiles of the
 #' clusters. The best parameter sets are then used for the next step.
 #' \item The impulse model is fitted to each gene separately using the parameter
@@ -1649,10 +1630,10 @@ DE_analysis <- function(data_table,data_annotation,impulse_fit_results,
 #' rownames(annot) = rownames(tcell.10)
 #' #' apply ImpulseDE in single time course mode
 #' #' since genes must be in rows, transpose data matrix using t()
-#' #' For the example, reduce random iterations to 100 and number of
-#' #' used processors to 1
-#' impulse_results <- impulse_DE(t(tcell.10), annot, "Time", "Condition",
-#'    n_randoms = 50, n_process = 1)
+#' #' For the example, reduce iterations to 10, randomizations to 50, number of
+#' #' genes to 20 and number of used processors to 1:
+#' impulse_results <- impulse_DE(t(tcell.10)[1:20,], annot, "Time", "Condition",
+#'    n_iter = 10, n_randoms = 50, n_process = 1)
 #' @seealso \code{\link{plot_impulse}}, \code{\link{calc_impulse}}.
 #' @author Jil Sander
 #' @references Benjamini, Y. and Hochberg, Y. (1995) Controlling the false
@@ -1673,13 +1654,13 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     colname_time = NULL, colname_condition = NULL, control_timecourse = FALSE,
     control_name = NULL, case_name = NULL, expr_type = "Array",
     plot_clusters = TRUE, n_iter = 100, n_randoms = 50000, n_process = 4,
-    Q_value = 0.01){
+    Q_value = 0.01, new_device = TRUE){
 
   tm_tot <- system.time({
 
     #' @import compiler
-    #' @importFrom grDevices dev.off pdf
-    #' @importFrom graphics abline axis legend par plot points
+    #' @importFrom grDevices dev.new
+    #' @importFrom graphics abline axis legend par plot points frame
     #' @importFrom stats aov cor dist kmeans mad median nlminb optim p.adjust
     #' @importFrom stats runif sd
     #' @importFrom utils head write.table
@@ -1695,8 +1676,6 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     prepared_annotation <- prepared_annotation[order(
             prepared_annotation$Condition),]
     prepared_annotation <- prepared_annotation[order(prepared_annotation$Time),]
-    save(prepared_annotation, file = file.path(getwd(),
-            "/prepared_annotation.RData"))
     print("DONE")
     print("###################################################################")
 
@@ -1719,12 +1698,11 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     ### cluster genes to reduce efforts for fitting the impulse model
     print("START: Clustering genes for Impulse model fit")
     print("-------------------------------------------------------------------")
-    load(file.path(getwd(),"/prepared_annotation.RData"))
     tm_clust <- system.time({
       clustering_results <- cluster_genes_for_impulse(expression_table,
-          prepared_annotation, control_timecourse, control_name, plot_clusters)
+          prepared_annotation, control_timecourse, control_name, plot_clusters,
+          n_device = new_device)
     })
-    save(clustering_results, file = file.path(getwd(),"clustering_results.RData"))
     print("DONE")
     print(paste("Consumed time: ",round(tm_clust["elapsed"]/60,2)," min",sep = ""))
     print("##################################################################")
@@ -1732,13 +1710,10 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     # fit Impulse model to the clusters
     print("START: Fitting Impulse model to the clusters")
     print("-------------------------------------------------------------------")
-    load(file.path(getwd(),"clustering_results.RData"))
     tm_imp_fit_clus <- system.time({
       impulse_fit_clusters <- impulse_fit(clustering_results,prepared_annotation,
           n_iter, control_timecourse, control_name, n_proc = n_process)
     })
-    save(impulse_fit_clusters,file = file.path(getwd(),
-        "impulse_fit_clusters.RData"))
     print("DONE")
     print(paste("Consumed time: ",round(tm_imp_fit_clus["elapsed"]/60,2)," min",
         sep = ""))
@@ -1747,13 +1722,11 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     ###  fit Impule model to each gene by using the cluster fits as start values
     print("START: Fitting Impulse model to the genes")
     print("-------------------------------------------------------------------")
-    load(file.path(getwd(),"impulse_fit_clusters.RData"))
     tm_imp_fit_gen <- system.time({
       impulse_fit_genes <- impulse_fit(expression_table, prepared_annotation,
         n_iter, control_timecourse, control_name, clustering_results,
         impulse_fit_clusters, n_proc = n_process)
     })
-    save(impulse_fit_genes,file = file.path(getwd(),"impulse_fit_genes.RData"))
     print("DONE")
     print(paste("Consumed time: ",round(tm_imp_fit_gen["elapsed"]/60,2),
         " min",sep = ""))
@@ -1762,13 +1735,11 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     ### generate background for the DE analysis
     print("START: Generate background")
     print("-------------------------------------------------------------------")
-    load(file.path(getwd(),"impulse_fit_genes.RData"))
     tm_bg <- system.time({
       background_results <-  generate_background(expression_table,
         prepared_annotation, n_iter, impulse_fit_genes, control_timecourse,
         control_name, clustering_results, n_randoms, n_process)
     })
-    save(background_results,file = file.path(getwd(),"background_results.RData"))
     print("DONE")
     print(paste("Consumed time: ",round(tm_bg["elapsed"]/60,2)," min",sep = ""))
     print("###################################################################")
@@ -1776,35 +1747,11 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
     ## detect differentially expressed genes
     print("START: DE analysis")
     print("-------------------------------------------------------------------")
-    load(file.path(getwd(),"background_results.RData"))
     tm_DE <- system.time({
       impulse_DE_genes <- DE_analysis(expression_table,prepared_annotation,
             impulse_fit_genes, background_results, control_timecourse,
             control_name, expr_type, Q_value)
     })
-    ## plot the top DE genes
-    if (control_timecourse == TRUE) {
-      case_ind =
-          as.character(prepared_annotation$Condition[prepared_annotation$Condition
-          != control_name][1])
-    } else {case_ind = NULL}
-    if (is.null(impulse_DE_genes) == FALSE & length(impulse_DE_genes) > 1) {
-      if (is.list(impulse_DE_genes) == TRUE &
-         is.data.frame(impulse_DE_genes) == FALSE) {
-            plot_impulse(as.character(impulse_DE_genes[[1]][,
-              "Gene"])[1:(min(nrow(impulse_DE_genes[[1]]),2*18))],
-              expression_table, prepared_annotation,impulse_fit_genes,
-              control_timecourse, control_name, case_ind, file_name_part = "DE",
-              title_line = "", sub_line = "")
-        } else {
-            plot_impulse(as.character(impulse_DE_genes[,
-              "Gene"])[1:(min(nrow(impulse_DE_genes),2*18))],
-              expression_table, prepared_annotation, impulse_fit_genes,
-              control_timecourse, control_name, case_ind, file_name_part = "DE",
-              title_line = "", sub_line = "")
-      }
-    }
-    save(impulse_DE_genes,file = file.path(getwd(),"impulse_DE_genes.RData"))
     print("DONE")
     print(paste("Consumed time: ",round(tm_DE["elapsed"]/60,2)," min",sep = ""))
     print("##################################################################")
@@ -1812,5 +1759,6 @@ impulse_DE <- function(expression_table = NULL, annotation_table = NULL,
   print(paste("TOTAL consumed time: ",round(tm_tot["elapsed"]/60,2),
         " min",sep = ""))
   return(list("impulse_fit_results" = impulse_fit_genes,
-        "DE_results" = impulse_DE_genes))
+        "DE_results" = impulse_DE_genes, "clustering_results" = clustering_results))
 }
+
